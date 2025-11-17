@@ -1,0 +1,7 @@
+{
+  "name": "Tây Ba lô Bot",
+  "description": "An interactive web app to help users practice English listening and speaking skills. Users choose a topic, and an AI-powered chatbot engages in a spoken conversation, providing Vietnamese subtitles and real-time transcription of the user's speech.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
