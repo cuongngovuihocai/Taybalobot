@@ -8,13 +8,43 @@ interface UseAudioTranscriptionProps {
   onPermissionError: (error: string) => void;
 }
 
+const audioProcessorWorklet = `
+class AudioProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.bufferSize = 4096;
+    this._buffer = new Float32Array(this.bufferSize);
+    this._bufferIndex = 0;
+  }
+
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input.length > 0) {
+      const inputChannel = input[0];
+      if (inputChannel) {
+        for (let i = 0; i < inputChannel.length; i++) {
+          this._buffer[this._bufferIndex++] = inputChannel[i];
+          if (this._bufferIndex === this.bufferSize) {
+            this.port.postMessage(this._buffer);
+            this._bufferIndex = 0;
+          }
+        }
+      }
+    }
+    return true; // Keep processor alive
+  }
+}
+
+registerProcessor('audio-processor', AudioProcessor);
+`;
+
 export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermissionError }: UseAudioTranscriptionProps) => {
   const [isRecording, setIsRecording] = useState(false);
   
   const sessionPromise = useRef<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']> | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
-  const scriptProcessor = useRef<ScriptProcessorNode | null>(null);
+  const audioWorkletNode = useRef<AudioWorkletNode | null>(null);
   const mediaStreamSource = useRef<MediaStreamAudioSourceNode | null>(null);
   
   const finalTranscriptRef = useRef(onTranscriptFinalized);
@@ -30,9 +60,10 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
         sessionPromise.current = null;
     }
     
-    if (scriptProcessor.current) {
-      scriptProcessor.current.disconnect();
-      scriptProcessor.current = null;
+    if (audioWorkletNode.current) {
+        audioWorkletNode.current.port.onmessage = null;
+        audioWorkletNode.current.disconnect();
+        audioWorkletNode.current = null;
     }
     if (mediaStreamSource.current) {
       mediaStreamSource.current.disconnect();
@@ -68,23 +99,35 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
       sessionPromise.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         callbacks: {
-          onopen: () => {
+          onopen: async () => {
              audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
              mediaStreamSource.current = audioContext.current.createMediaStreamSource(mediaStream.current!);
-             scriptProcessor.current = audioContext.current.createScriptProcessor(4096, 1, 1);
-
-             scriptProcessor.current.onaudioprocess = (audioProcessingEvent) => {
-                const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                const pcmBlob = createPcmBlob(inputData);
-                if (sessionPromise.current) {
-                    sessionPromise.current.then((session) => {
-                        session.sendRealtimeInput({ media: pcmBlob });
-                    });
-                }
+             
+             try {
+                const workletBlob = new Blob([audioProcessorWorklet], { type: 'application/javascript' });
+                const workletURL = URL.createObjectURL(workletBlob);
+                await audioContext.current.audioWorklet.addModule(workletURL);
+             } catch (e) {
+                console.error("Error adding AudioWorklet module", e);
+                onPermissionError("Trình duyệt không hỗ trợ tính năng ghi âm nâng cao.");
+                stopRecording();
+                return;
+             }
+             
+             audioWorkletNode.current = new AudioWorkletNode(audioContext.current, 'audio-processor');
+             
+             audioWorkletNode.current.port.onmessage = (event) => {
+                 const pcmData = event.data;
+                 const pcmBlob = createPcmBlob(pcmData);
+                 if (sessionPromise.current) {
+                     sessionPromise.current.then((session) => {
+                         session.sendRealtimeInput({ media: pcmBlob });
+                     });
+                 }
              };
 
-             mediaStreamSource.current.connect(scriptProcessor.current);
-             scriptProcessor.current.connect(audioContext.current.destination);
+             mediaStreamSource.current.connect(audioWorkletNode.current);
+             audioWorkletNode.current.connect(audioContext.current.destination);
           },
           onmessage: (message: LiveServerMessage) => {
             if (message.serverContent?.inputTranscription?.text) {
@@ -104,13 +147,9 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
         },
         config: {
           inputAudioTranscription: {},
+          // This is required for the conversational audio model, even if we only use transcription.
+          // It prevents the "Cannot extract voices from a non-audio request" error.
           responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Zephyr' },
-            },
-          },
-          systemInstruction: 'You are a service that only transcribes user audio. Do not generate any spoken response.',
         },
       });
 

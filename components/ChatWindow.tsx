@@ -88,7 +88,7 @@ const ScriptLineMessage: React.FC<ScriptLineMessageProps> = ({ line, isPast, isC
   };
 
   return (
-    <div className={`flex items-end gap-3 my-4 ${isBot ? 'justify-start' : 'justify-end'} ${isPast ? 'opacity-70' : ''}`}>
+    <div className={`flex items-end gap-3 my-4 ${isBot ? 'justify-start' : 'justify-end'} ${isPast ? 'opacity-70' : ''} ${isCurrent ? 'animate-fade-in' : ''}`}>
       {isBot && (
         <div className="w-10 h-10 rounded-full bg-teal-500 flex items-center justify-center font-bold text-white flex-shrink-0">
           AI

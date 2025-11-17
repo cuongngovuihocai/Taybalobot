@@ -1,14 +1,14 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ScriptLine, Difficulty, ConversationTurnForFeedback } from './types';
-import { generateConversationScript, generateSpeech, generateClosingScript, clearAudioCache, generateFeedback, generateTranslation } from './services/geminiService';
+import { ScriptLine, Difficulty, ConversationTurnForFeedback, AppPhase } from './types';
+import { generateConversationScript, generateSpeech, clearAudioCache, generateFeedback, generateTranslation } from './services/geminiService';
 import { useAudioTranscription } from './hooks/useAudioTranscription';
+import ApiKeyPrompt from './components/ApiKeyPrompt';
 import TopicSelector from './components/TopicSelector';
 import ChatWindow from './components/ChatWindow';
 import Controls from './components/Controls';
 import CompletionScreen from './components/CompletionScreen';
 import { decodeAudioData } from './utils/audioUtils';
-
-type AppPhase = 'topicSelection' | 'generatingScript' | 'inConversation' | 'endingConversation' | 'generatingFeedback' | 'conversationEnded';
 
 const logoSrc = 'https://lh3.googleusercontent.com/d/1CihXmyKfVHJz6283B2Zz_L6i2pvEmB7Q';
 
@@ -16,7 +16,7 @@ const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini-api-key') || '');
   const [topic, setTopic] = useState<string>('');
   const [difficulty, setDifficulty] = useState<Difficulty>('B1');
-  const [phase, setPhase] = useState<AppPhase>('topicSelection');
+  const [phase, setPhase] = useState<AppPhase>(() => (localStorage.getItem('gemini-api-key') ? 'topicSelection' : 'apiKeyNeeded'));
   const [conversationScript, setConversationScript] = useState<ScriptLine[]>([]);
   const [currentTurnIndex, setCurrentTurnIndex] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -36,7 +36,11 @@ const App: React.FC = () => {
   
   // Store API key in local storage for persistence
   useEffect(() => {
-    localStorage.setItem('gemini-api-key', apiKey);
+    if (apiKey) {
+      localStorage.setItem('gemini-api-key', apiKey);
+    } else {
+      localStorage.removeItem('gemini-api-key');
+    }
   }, [apiKey]);
 
   // Initialize and manage AudioContext
@@ -94,7 +98,7 @@ const App: React.FC = () => {
 
   // Main conversation flow logic
   useEffect(() => {
-    if (phase !== 'inConversation' && phase !== 'endingConversation') return;
+    if (phase !== 'inConversation') return;
     
     if (currentTurnIndex >= conversationScript.length) {
         if (phase === 'inConversation') {
@@ -219,6 +223,11 @@ const App: React.FC = () => {
     onPermissionError: setPermissionError,
   });
 
+  const handleApiKeySubmit = (newApiKey: string) => {
+    setApiKey(newApiKey);
+    setPhase('topicSelection');
+  };
+  
   const handleTopicSubmit = async (newTopic: string, newDifficulty: Difficulty) => {
     if (!newTopic.trim() || !apiKey.trim()) return;
     setTopic(newTopic);
@@ -265,40 +274,6 @@ const App: React.FC = () => {
       setLoadingMessage('');
     }
   };
-  
-  const handleEndConversationRequest = async () => {
-    stopRecording();
-    setIsLoading(true);
-    setPhase('endingConversation');
-    try {
-      const closingScript = await generateClosingScript(apiKey);
-      
-      const newAudioBuffers = new Map(audioBuffers.current);
-      const audioPromises = closingScript
-        .filter(line => !newAudioBuffers.has(line.text))
-        .map(line => (async () => {
-            try {
-                const audioData = await generateSpeech(line.text, apiKey);
-                if (audioData && outputAudioContext.current) {
-                    const audioBuffer = await decodeAudioData(audioData, outputAudioContext.current, 24000, 1);
-                    newAudioBuffers.set(line.text, audioBuffer);
-                }
-            } catch (e) {
-                console.error(`Failed to pre-generate audio for closing script: "${line.text}"`, e);
-            }
-        })());
-      
-      await Promise.all(audioPromises);
-      audioBuffers.current = newAudioBuffers;
-
-      setConversationScript(prev => [...prev.slice(0, currentTurnIndex), ...closingScript]);
-    } catch (error) {
-      console.error("Error generating closing script:", error);
-      resetConversation();
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSkipTurn = () => {
     if (isUserTurn) {
@@ -326,45 +301,34 @@ const App: React.FC = () => {
     setPhase('topicSelection');
   };
   
+  const handleRequestApiKeyChange = () => {
+    stopRecording();
+    setApiKey('');
+    resetConversation();
+    setPhase('apiKeyNeeded');
+  };
+  
   const currentTurn = conversationScript[currentTurnIndex];
   const isUserTurn = phase === 'inConversation' && currentTurn?.role === 'user';
-
-  return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-900 to-gray-800 font-sans">
-      <header className="bg-gray-900/50 backdrop-blur-sm shadow-lg p-4 flex justify-between items-center relative">
-        {/* Left: Logo */}
-        <img src={logoSrc} alt="Ham Choi Education Logo" className="h-48" />
-        
-        {/* Center: Title */}
-        <h1 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-3xl md:text-4xl font-bold text-teal-300 whitespace-nowrap uppercase">
-            Luyện Hội Thoại Tiếng Anh
-        </h1>
-        
-        {/* Right: Button */}
-        <div>
-          {phase !== 'topicSelection' && (
-            <button
-              onClick={resetConversation}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-red-500 transition-colors"
-            >
-              Chủ Đề Mới
-            </button>
-          )}
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-hidden">
-        {phase === 'topicSelection' || phase === 'generatingScript' ? (
+  
+  const renderContent = () => {
+    switch (phase) {
+      case 'apiKeyNeeded':
+        return <ApiKeyPrompt onApiKeySubmit={handleApiKeySubmit} />;
+      case 'topicSelection':
+      case 'generatingScript':
+        return (
           <TopicSelector 
             onSubmit={handleTopicSubmit} 
             isLoading={isLoading} 
             loadingMessage={loadingMessage} 
-            apiKey={apiKey}
-            onApiKeyChange={setApiKey}
           />
-        ) : phase === 'conversationEnded' || phase === 'generatingFeedback' ? (
-          <CompletionScreen onReset={resetConversation} feedback={feedback} feedbackTranslation={feedbackTranslation} isLoading={phase === 'generatingFeedback'} />
-        ) : (
+        );
+      case 'conversationEnded':
+      case 'generatingFeedback':
+        return <CompletionScreen onReset={resetConversation} feedback={feedback} feedbackTranslation={feedbackTranslation} isLoading={phase === 'generatingFeedback'} />;
+      default: // inConversation
+        return (
           <div className="flex flex-col h-full">
             <ChatWindow
               script={conversationScript}
@@ -380,12 +344,28 @@ const App: React.FC = () => {
               onToggleRecording={isRecording ? stopRecording : startRecording}
               isUserTurn={isUserTurn}
               isRecordingDisabled={isPlayingAudio || isLoading || isUserLineCorrect === true || isHintPlaying}
-              onEndConversation={handleEndConversationRequest}
+              onEndConversation={resetConversation}
               onSkipTurn={handleSkipTurn}
               permissionError={permissionError}
             />
           </div>
-        )}
+        );
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gradient-to-br from-gray-900 to-gray-800 font-sans">
+      <header className="bg-gray-900/50 backdrop-blur-sm shadow-lg p-4 flex justify-center items-center relative h-28 md:h-40">
+        {/* Center: Logo */}
+        <img 
+            src={logoSrc} 
+            alt="Ham Choi Education Logo" 
+            className="h-20 md:h-28 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" 
+        />
+      </header>
+
+      <main className="flex-1 overflow-y-auto">
+        {renderContent()}
       </main>
     </div>
   );

@@ -12,3 +12,5 @@ export interface ConversationTurnForFeedback {
   expected: string;
   actual: string;
 }
+
+export type AppPhase = 'apiKeyNeeded' | 'topicSelection' | 'generatingScript' | 'inConversation' | 'generatingFeedback' | 'conversationEnded';

@@ -62,16 +62,6 @@ Now, generate the JSON script for the topic: "${topic}".
 };
 
 
-export const closingScriptPrompt = (): string => `
-You are an AI English tutor. The user wants to end the conversation. 
-Generate a short, polite closing script in JSON format, following the same structure as before (role, text, translation).
-The script should consist of two turns:
-1. A "bot" turn acknowledging the user's request to stop and saying goodbye politely.
-2. A "user" turn with a simple, polite goodbye.
-
-Generate the JSON script now.
-`;
-
 export const feedbackGenerationPrompt = (history: ConversationTurnForFeedback[], difficulty: Difficulty, score: number): string => `
 You are an expert AI English language tutor. Your task is to provide feedback to a student based on their performance in a practice conversation.
 The student was practicing at the "${difficulty}" level.
