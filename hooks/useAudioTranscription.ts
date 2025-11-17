@@ -1,21 +1,17 @@
-
 import { useState, useRef, useCallback, useEffect } from 'react';
-// FIX: The `LiveSession` type is not exported from the library.
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { createPcmBlob } from '../utils/audioUtils';
 
 interface UseAudioTranscriptionProps {
+  apiKey: string;
   onTranscriptFinalized: (transcript: string) => void;
   onPermissionError: (error: string) => void;
 }
 
-export const useAudioTranscription = ({ onTranscriptFinalized, onPermissionError }: UseAudioTranscriptionProps) => {
+export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermissionError }: UseAudioTranscriptionProps) => {
   const [isRecording, setIsRecording] = useState(false);
   
-  // FIX: Moved `ai` instance creation up and infer the session promise type
-  // from `ai.live.connect` since `LiveSession` is not available.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-  const sessionPromise = useRef<ReturnType<typeof ai.live.connect> | null>(null);
+  const sessionPromise = useRef<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']> | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const mediaStream = useRef<MediaStream | null>(null);
   const scriptProcessor = useRef<ScriptProcessorNode | null>(null);
@@ -57,11 +53,17 @@ export const useAudioTranscription = ({ onTranscriptFinalized, onPermissionError
     if (isRecording) return;
     onPermissionError(''); // Clear previous errors
 
+    if (!apiKey) {
+      onPermissionError('Vui lòng nhập API Key để bắt đầu.');
+      return;
+    }
+
     try {
       mediaStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       setIsRecording(true);
       
       let finalTranscript = '';
+      const ai = new GoogleGenAI({ apiKey });
 
       sessionPromise.current = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -91,7 +93,7 @@ export const useAudioTranscription = ({ onTranscriptFinalized, onPermissionError
           },
           onerror: (e: ErrorEvent) => {
             console.error('Gemini Live API Error:', e);
-            onPermissionError('Đã xảy ra lỗi API trong quá trình ghi âm.');
+            onPermissionError('Đã xảy ra lỗi API trong quá trình ghi âm. Vui lòng kiểm tra API Key.');
             stopRecording();
           },
           onclose: () => {
@@ -127,7 +129,7 @@ export const useAudioTranscription = ({ onTranscriptFinalized, onPermissionError
         }
         setIsRecording(false);
     }
-  }, [isRecording, stopRecording, ai.live, onPermissionError]);
+  }, [isRecording, stopRecording, apiKey, onPermissionError]);
 
   return { isRecording, startRecording, stopRecording };
 };

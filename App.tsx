@@ -13,6 +13,7 @@ type AppPhase = 'topicSelection' | 'generatingScript' | 'inConversation' | 'endi
 const logoSrc = 'https://lh3.googleusercontent.com/d/1CihXmyKfVHJz6283B2Zz_L6i2pvEmB7Q';
 
 const App: React.FC = () => {
+  const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini-api-key') || '');
   const [topic, setTopic] = useState<string>('');
   const [difficulty, setDifficulty] = useState<Difficulty>('B1');
   const [phase, setPhase] = useState<AppPhase>('topicSelection');
@@ -33,6 +34,11 @@ const App: React.FC = () => {
   const audioBuffers = useRef(new Map<string, AudioBuffer>());
   const outputAudioContext = useRef<AudioContext | null>(null);
   
+  // Store API key in local storage for persistence
+  useEffect(() => {
+    localStorage.setItem('gemini-api-key', apiKey);
+  }, [apiKey]);
+
   // Initialize and manage AudioContext
   useEffect(() => {
     if (!outputAudioContext.current) {
@@ -106,7 +112,7 @@ const App: React.FC = () => {
         } else {
             console.warn(`Audio buffer for "${currentTurn.text}" not found. Generating on-the-fly.`);
             (async () => {
-                const audioData = await generateSpeech(currentTurn.text);
+                const audioData = await generateSpeech(currentTurn.text, apiKey);
                 if (audioData && outputAudioContext.current) {
                     const buffer = await decodeAudioData(audioData, outputAudioContext.current, 24000, 1);
                     audioBuffers.current.set(currentTurn.text, buffer);
@@ -121,7 +127,7 @@ const App: React.FC = () => {
         setIsUserLineCorrect(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, currentTurnIndex, conversationScript]);
+  }, [phase, currentTurnIndex, conversationScript, apiKey]);
 
   // Feedback generation effect
   useEffect(() => {
@@ -140,10 +146,10 @@ const App: React.FC = () => {
           const totalUserTurns = userTurns.length;
           const score = totalUserTurns > 0 ? Math.round((successfulTurns / totalUserTurns) * 10) : 10;
 
-          const feedbackText = await generateFeedback(feedbackTurns, difficulty, score);
+          const feedbackText = await generateFeedback(feedbackTurns, difficulty, score, apiKey);
           setFeedback(feedbackText);
 
-          const translationText = await generateTranslation(feedbackText, "Vietnamese");
+          const translationText = await generateTranslation(feedbackText, "Vietnamese", apiKey);
           setFeedbackTranslation(translationText);
 
         } catch (error) {
@@ -157,7 +163,7 @@ const App: React.FC = () => {
       };
       getFeedback();
     }
-  }, [phase, conversationScript, userTranscriptionHistory, difficulty]);
+  }, [phase, conversationScript, userTranscriptionHistory, difficulty, apiKey]);
 
 
   const validateTranscription = (transcript: string) => {
@@ -208,12 +214,13 @@ const App: React.FC = () => {
 
 
   const { isRecording, startRecording, stopRecording } = useAudioTranscription({
+    apiKey,
     onTranscriptFinalized: validateTranscription,
     onPermissionError: setPermissionError,
   });
 
   const handleTopicSubmit = async (newTopic: string, newDifficulty: Difficulty) => {
-    if (!newTopic.trim()) return;
+    if (!newTopic.trim() || !apiKey.trim()) return;
     setTopic(newTopic);
     setDifficulty(newDifficulty);
     setIsLoading(true);
@@ -222,7 +229,7 @@ const App: React.FC = () => {
     setLoadingMessage('Đang tạo kịch bản hội thoại...');
 
     try {
-      const script = await generateConversationScript(newTopic, newDifficulty);
+      const script = await generateConversationScript(newTopic, newDifficulty, apiKey);
       setConversationScript(script);
       
       const totalAudioFiles = script.length;
@@ -232,7 +239,7 @@ const App: React.FC = () => {
       const newAudioBuffers = new Map<string, AudioBuffer>();
       const audioPromises = script.map(line => (async () => {
           try {
-            const audioData = await generateSpeech(line.text);
+            const audioData = await generateSpeech(line.text, apiKey);
             if (audioData && outputAudioContext.current) {
               const audioBuffer = await decodeAudioData(audioData, outputAudioContext.current, 24000, 1);
               newAudioBuffers.set(line.text, audioBuffer);
@@ -264,14 +271,14 @@ const App: React.FC = () => {
     setIsLoading(true);
     setPhase('endingConversation');
     try {
-      const closingScript = await generateClosingScript();
+      const closingScript = await generateClosingScript(apiKey);
       
       const newAudioBuffers = new Map(audioBuffers.current);
       const audioPromises = closingScript
         .filter(line => !newAudioBuffers.has(line.text))
         .map(line => (async () => {
             try {
-                const audioData = await generateSpeech(line.text);
+                const audioData = await generateSpeech(line.text, apiKey);
                 if (audioData && outputAudioContext.current) {
                     const audioBuffer = await decodeAudioData(audioData, outputAudioContext.current, 24000, 1);
                     newAudioBuffers.set(line.text, audioBuffer);
@@ -348,7 +355,13 @@ const App: React.FC = () => {
 
       <main className="flex-1 overflow-hidden">
         {phase === 'topicSelection' || phase === 'generatingScript' ? (
-          <TopicSelector onSubmit={handleTopicSubmit} isLoading={isLoading} loadingMessage={loadingMessage} />
+          <TopicSelector 
+            onSubmit={handleTopicSubmit} 
+            isLoading={isLoading} 
+            loadingMessage={loadingMessage} 
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+          />
         ) : phase === 'conversationEnded' || phase === 'generatingFeedback' ? (
           <CompletionScreen onReset={resetConversation} feedback={feedback} feedbackTranslation={feedbackTranslation} isLoading={phase === 'generatingFeedback'} />
         ) : (

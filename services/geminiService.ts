@@ -1,10 +1,8 @@
-
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { decode } from '../utils/audioUtils';
 import { ScriptLine, Difficulty, ConversationTurnForFeedback } from '../types';
 import { scriptGenerationPrompt, closingScriptPrompt, feedbackGenerationPrompt, translationPrompt } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 const scriptModel = 'gemini-2.5-pro';
 const feedbackModel = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
@@ -30,7 +28,9 @@ const scriptSchema = {
     },
 };
 
-export const generateConversationScript = async (topic: string, difficulty: Difficulty): Promise<ScriptLine[]> => {
+export const generateConversationScript = async (topic: string, difficulty: Difficulty, apiKey: string): Promise<ScriptLine[]> => {
+    if (!apiKey) throw new Error("API Key is required.");
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             model: scriptModel,
@@ -51,11 +51,13 @@ export const generateConversationScript = async (topic: string, difficulty: Diff
 
     } catch (error) {
         console.error("Error generating conversation script:", error);
-        throw new Error("Failed to generate a conversation script.");
+        throw new Error("Failed to generate a conversation script. Please check your API Key and network connection.");
     }
 };
 
-export const generateClosingScript = async (): Promise<ScriptLine[]> => {
+export const generateClosingScript = async (apiKey: string): Promise<ScriptLine[]> => {
+    if (!apiKey) throw new Error("API Key is required.");
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             model: scriptModel,
@@ -77,10 +79,12 @@ export const generateClosingScript = async (): Promise<ScriptLine[]> => {
     }
 };
 
-export const generateSpeech = async (text: string): Promise<Uint8Array | null> => {
+export const generateSpeech = async (text: string, apiKey: string): Promise<Uint8Array | null> => {
     if (audioCache.has(text)) {
         return audioCache.get(text) ?? null;
     }
+    if (!apiKey) throw new Error("API Key is required for TTS.");
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             model: ttsModel,
@@ -108,7 +112,9 @@ export const generateSpeech = async (text: string): Promise<Uint8Array | null> =
     }
 };
 
-export const generateFeedback = async (history: ConversationTurnForFeedback[], difficulty: Difficulty, score: number): Promise<string> => {
+export const generateFeedback = async (history: ConversationTurnForFeedback[], difficulty: Difficulty, score: number, apiKey: string): Promise<string> => {
+    if (!apiKey) throw new Error("API Key is required.");
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             model: feedbackModel,
@@ -121,7 +127,9 @@ export const generateFeedback = async (history: ConversationTurnForFeedback[], d
     }
 };
 
-export const generateTranslation = async (text: string, language: string): Promise<string> => {
+export const generateTranslation = async (text: string, language: string, apiKey: string): Promise<string> => {
+    if (!apiKey) throw new Error("API Key is required.");
+    const ai = new GoogleGenAI({ apiKey });
     try {
         const response = await ai.models.generateContent({
             model: translationModel,

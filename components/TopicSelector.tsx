@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Difficulty } from '../types';
 
@@ -6,11 +5,13 @@ interface TopicSelectorProps {
   onSubmit: (topic: string, difficulty: Difficulty) => void;
   isLoading: boolean;
   loadingMessage: string;
+  apiKey: string;
+  onApiKeyChange: (key: string) => void;
 }
 
 const difficultyLevels: Difficulty[] = ['A1', 'A2', 'B1', 'B2', 'C1'];
 
-const TopicSelector: React.FC<TopicSelectorProps> = ({ onSubmit, isLoading, loadingMessage }) => {
+const TopicSelector: React.FC<TopicSelectorProps> = ({ onSubmit, isLoading, loadingMessage, apiKey, onApiKeyChange }) => {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState<Difficulty>('B1');
 
@@ -23,6 +24,20 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({ onSubmit, isLoading, load
     <div className="flex flex-col items-center justify-center h-full p-4 text-center">
       <div className="max-w-lg w-full bg-gray-800/50 p-8 rounded-xl shadow-2xl border border-gray-700">
         <h2 className="text-3xl font-bold mb-4 text-teal-300">Chào mừng!</h2>
+
+        <div className="mb-6 text-left">
+            <label htmlFor="api-key" className="block text-lg text-gray-300 mb-2">Nhập Gemini API Key của bạn:</label>
+            <input
+                id="api-key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => onApiKeyChange(e.target.value)}
+                placeholder="API Key..."
+                className="w-full px-4 py-3 bg-gray-900 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all text-white placeholder-gray-500"
+                disabled={isLoading}
+            />
+        </div>
+        
         <p className="text-lg text-gray-300 mb-6">Đầu tiên, hãy chọn độ khó luyện tập:</p>
         
         <div className="flex flex-wrap justify-center gap-3 mb-6">
@@ -54,7 +69,7 @@ const TopicSelector: React.FC<TopicSelectorProps> = ({ onSubmit, isLoading, load
           />
           <button
             type="submit"
-            disabled={isLoading || !topic.trim()}
+            disabled={isLoading || !topic.trim() || !apiKey.trim()}
             className="px-6 py-3 font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-teal-500"
           >
             {isLoading ? loadingMessage || 'Vui lòng đợi...' : 'Bắt Đầu Luyện Tập'}
