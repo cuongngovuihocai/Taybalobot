@@ -16,7 +16,7 @@ const App: React.FC = () => {
   const [apiKey, setApiKey] = useState<string>(() => localStorage.getItem('gemini-api-key') || '');
   const [topic, setTopic] = useState<string>('');
   const [difficulty, setDifficulty] = useState<Difficulty>('B1');
-  const [phase, setPhase] = useState<AppPhase>(() => (localStorage.getItem('gemini-api-key') ? 'topicSelection' : 'apiKeyNeeded'));
+  const [phase, setPhase] = useState<AppPhase>('apiKeyNeeded');
   const [conversationScript, setConversationScript] = useState<ScriptLine[]>([]);
   const [currentTurnIndex, setCurrentTurnIndex] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
