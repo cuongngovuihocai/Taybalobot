@@ -7,6 +7,8 @@ interface ChatWindowProps {
   currentTurnIndex: number;
   isUserLineCorrect: boolean | null;
   userTranscription: string;
+  liveUserTranscription: string;
+  isRecording: boolean;
   onPlayHint: (text: string) => void;
   isHintPlaying: boolean;
   isPlayingAudio: boolean;
@@ -30,12 +32,14 @@ interface ScriptLineMessageProps {
     isCurrent: boolean;
     isUserLineCorrect?: boolean | null;
     userTranscription?: string;
+    liveUserTranscription?: string;
+    isRecording?: boolean;
     onPlayHint: (text: string) => void;
     isHintPlaying: boolean;
     isPlayingAudio: boolean;
 }
 
-const ScriptLineMessage: React.FC<ScriptLineMessageProps> = ({ line, isPast, isCurrent, isUserLineCorrect, userTranscription, onPlayHint, isHintPlaying, isPlayingAudio }) => {
+const ScriptLineMessage: React.FC<ScriptLineMessageProps> = ({ line, isPast, isCurrent, isUserLineCorrect, userTranscription, liveUserTranscription, isRecording, onPlayHint, isHintPlaying, isPlayingAudio }) => {
   const isBot = line.role === 'bot';
 
   const botLineContent = () => (
@@ -53,23 +57,37 @@ const ScriptLineMessage: React.FC<ScriptLineMessageProps> = ({ line, isPast, isC
   );
 
   const userLineContent = () => {
-    // Case 1: User was correct. Show their final transcription and a checkmark.
+    // Case 1: User's line was marked correct. Show their final transcription and a checkmark.
     if (isUserLineCorrect === true) {
         return (
             <div className="flex items-center gap-2">
-                <p className="text-white text-base leading-relaxed italic">{userTranscription}</p>
+                <p className="text-white text-base leading-relaxed italic">"{userTranscription}"</p>
                 <CheckmarkIcon />
             </div>
         );
     }
 
-    // Case 2: It's the user's turn (initial or incorrect attempt).
-    // Show the prompt, the hint button, and an error message if they were incorrect.
+    // Case 2: It's the user's turn. Handle recording state and post-recording state.
     return (
         <div>
-            {isUserLineCorrect === false && userTranscription && (
-                 <p className="text-red-300 text-base leading-relaxed italic mb-2">Tôi nghe được: "{userTranscription}" - Hãy thử lại nhé.</p>
+            {/* While recording, show only the live transcription */}
+            {isRecording && (
+                <p className="text-yellow-300 text-base leading-relaxed italic mb-2 min-h-[24px]">
+                   {liveUserTranscription}&nbsp;
+                </p>
             )}
+            
+            {/* After recording, if incorrect, show the final transcription and a retry message */}
+            {!isRecording && isUserLineCorrect === false && userTranscription && (
+                <>
+                    <p className="text-red-300 text-base leading-relaxed italic mb-2">
+                       "{userTranscription}"
+                    </p>
+                    <p className="text-red-300 text-sm leading-relaxed mb-2">Hãy thử lại nhé.</p>
+                </>
+            )}
+
+            {/* The original user line to be spoken */}
             <div className="flex items-center gap-2.5">
                 <p className="text-white text-base leading-relaxed">{line.text}</p>
                 {isCurrent && (
@@ -109,7 +127,7 @@ const ScriptLineMessage: React.FC<ScriptLineMessageProps> = ({ line, isPast, isC
 };
 
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ script, currentTurnIndex, isUserLineCorrect, userTranscription, onPlayHint, isHintPlaying, isPlayingAudio }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ script, currentTurnIndex, isUserLineCorrect, userTranscription, liveUserTranscription, isRecording, onPlayHint, isHintPlaying, isPlayingAudio }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,7 +136,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ script, currentTurnIndex, isUse
             scrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }, 100);
     }
-  }, [script, currentTurnIndex]);
+  }, [script, currentTurnIndex, liveUserTranscription]);
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-y-auto">
@@ -131,6 +149,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ script, currentTurnIndex, isUse
             isCurrent={index === currentTurnIndex}
             isUserLineCorrect={index === currentTurnIndex ? isUserLineCorrect : (line.role === 'user' ? true : null) }
             userTranscription={index === currentTurnIndex ? userTranscription : line.text}
+            liveUserTranscription={liveUserTranscription}
+            isRecording={isRecording && index === currentTurnIndex}
             onPlayHint={onPlayHint}
             isHintPlaying={isHintPlaying}
             isPlayingAudio={isPlayingAudio}

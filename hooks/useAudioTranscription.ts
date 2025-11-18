@@ -1,9 +1,11 @@
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { createPcmBlob } from '../utils/audioUtils';
 
 interface UseAudioTranscriptionProps {
   apiKey: string;
+  onTranscriptUpdate: (transcript: string) => void;
   onTranscriptFinalized: (transcript: string) => void;
   onPermissionError: (error: string) => void;
 }
@@ -38,7 +40,7 @@ class AudioProcessor extends AudioWorkletProcessor {
 registerProcessor('audio-processor', AudioProcessor);
 `;
 
-export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermissionError }: UseAudioTranscriptionProps) => {
+export const useAudioTranscription = ({ apiKey, onTranscriptUpdate, onTranscriptFinalized, onPermissionError }: UseAudioTranscriptionProps) => {
   const [isRecording, setIsRecording] = useState(false);
   
   const sessionPromise = useRef<ReturnType<InstanceType<typeof GoogleGenAI>['live']['connect']> | null>(null);
@@ -51,6 +53,11 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
   useEffect(() => {
     finalTranscriptRef.current = onTranscriptFinalized;
   }, [onTranscriptFinalized]);
+
+  const updateTranscriptRef = useRef(onTranscriptUpdate);
+  useEffect(() => {
+    updateTranscriptRef.current = onTranscriptUpdate;
+  }, [onTranscriptUpdate]);
 
   const stopRecording = useCallback(() => {
     setIsRecording(false);
@@ -93,7 +100,7 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
       mediaStream.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       setIsRecording(true);
       
-      let finalTranscript = '';
+      let currentTranscript = '';
       const ai = new GoogleGenAI({ apiKey });
 
       sessionPromise.current = ai.live.connect({
@@ -131,7 +138,8 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
           },
           onmessage: (message: LiveServerMessage) => {
             if (message.serverContent?.inputTranscription?.text) {
-                finalTranscript += message.serverContent.inputTranscription.text;
+                currentTranscript += message.serverContent.inputTranscription.text;
+                updateTranscriptRef.current(currentTranscript);
             }
           },
           onerror: (e: ErrorEvent) => {
@@ -140,8 +148,8 @@ export const useAudioTranscription = ({ apiKey, onTranscriptFinalized, onPermiss
             stopRecording();
           },
           onclose: () => {
-             if(finalTranscript.trim()){
-                finalTranscriptRef.current(finalTranscript);
+             if(currentTranscript.trim()){
+                finalTranscriptRef.current(currentTranscript);
              }
           },
         },

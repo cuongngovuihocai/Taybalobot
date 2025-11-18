@@ -24,6 +24,7 @@ const App: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   
   const [userTranscription, setUserTranscription] = useState('');
+  const [liveUserTranscription, setLiveUserTranscription] = useState('');
   const [userTranscriptionHistory, setUserTranscriptionHistory] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<string>('');
   const [feedbackTranslation, setFeedbackTranslation] = useState<string>('');
@@ -128,6 +129,7 @@ const App: React.FC = () => {
         }
     } else { // User's turn
         setUserTranscription('');
+        setLiveUserTranscription('');
         setIsUserLineCorrect(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,6 +221,7 @@ const App: React.FC = () => {
 
   const { isRecording, startRecording, stopRecording } = useAudioTranscription({
     apiKey,
+    onTranscriptUpdate: setLiveUserTranscription,
     onTranscriptFinalized: validateTranscription,
     onPermissionError: setPermissionError,
   });
@@ -292,6 +295,7 @@ const App: React.FC = () => {
     setIsLoading(false);
     setPermissionError('');
     setUserTranscription('');
+    setLiveUserTranscription('');
     setIsUserLineCorrect(null);
     audioBuffers.current.clear();
     setLoadingMessage('');
@@ -335,6 +339,8 @@ const App: React.FC = () => {
               currentTurnIndex={currentTurnIndex}
               isUserLineCorrect={isUserLineCorrect}
               userTranscription={userTranscription}
+              liveUserTranscription={liveUserTranscription}
+              isRecording={isRecording}
               onPlayHint={handlePlayHintAudio}
               isHintPlaying={isHintPlaying}
               isPlayingAudio={isPlayingAudio}

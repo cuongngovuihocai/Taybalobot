@@ -48,12 +48,12 @@ Example output format for a different topic:
   {
     "role": "bot",
     "text": "Alright, mate? I hear you're into cooking. What's your favourite thing to rustle up?",
-    "translation": "Chào bạn? Tôi nghe nói bạn rất thích nấu ăn. Món ăn yêu thích của bạn là gì?"
+    "translation": "This should be the VIETNAMESE translation of the English text."
   },
   {
     "role": "user",
     "text": "I love making spaghetti bolognese. It's a proper classic, isn't it?",
-    "translation": "Tôi rất thích làm món mỳ Ý sốt bò bằm. Nó là một món kinh điển, phải không?"
+    "translation": "This should be the VIETNAMESE translation of the English text."
   }
 ]
 
