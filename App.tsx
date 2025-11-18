@@ -35,15 +35,6 @@ const App: React.FC = () => {
   const audioBuffers = useRef(new Map<string, AudioBuffer>());
   const outputAudioContext = useRef<AudioContext | null>(null);
   
-  // Store API key in local storage for persistence
-  useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('gemini-api-key', apiKey);
-    } else {
-      localStorage.removeItem('gemini-api-key');
-    }
-  }, [apiKey]);
-
   // Initialize and manage AudioContext
   useEffect(() => {
     if (!outputAudioContext.current) {
@@ -226,8 +217,12 @@ const App: React.FC = () => {
     onPermissionError: setPermissionError,
   });
 
-  const handleApiKeySubmit = (newApiKey: string) => {
-    setApiKey(newApiKey);
+  const handleSaveApiKey = (keyToSave: string) => {
+    localStorage.setItem('gemini-api-key', keyToSave);
+  };
+
+  const handleStartSession = (sessionApiKey: string) => {
+    setApiKey(sessionApiKey);
     setPhase('topicSelection');
   };
   
@@ -318,7 +313,13 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (phase) {
       case 'apiKeyNeeded':
-        return <ApiKeyPrompt onApiKeySubmit={handleApiKeySubmit} />;
+        return (
+          <ApiKeyPrompt
+            initialApiKey={apiKey}
+            onSaveApiKey={handleSaveApiKey}
+            onStartSession={handleStartSession}
+          />
+        );
       case 'topicSelection':
       case 'generatingScript':
         return (
